@@ -1,0 +1,8 @@
+# macOS metadata
+.DS_Store
+
+# CMake build output
+build/
+
+# Scratch / investigation notes
+/tmp
