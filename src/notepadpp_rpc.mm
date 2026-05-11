@@ -8,7 +8,7 @@
  *   - Connects to Discord via UNIX domain socket (discord-ipc-N in temp dir)
  *   - Uses GCD (dispatch queues) instead of Win32 threads
  *   - Uses NSJSONSerialization for JSON encoding
- *   - Configuration stored in ~/.notepad++/plugins/notepadpp_rpc/notepadpp_rpc.json
+ *   - Configuration stored in ~/.nextpad++/plugins/notepadpp_rpc/notepadpp_rpc.json
  *   - Language detection via file extension
  *   - Status: file name, extension, size, line/column, language
  *   - Idle detection after configurable timeout
@@ -154,7 +154,7 @@ static intptr_t sci(NppHandle h, uint32_t msg, uintptr_t w = 0, intptr_t l = 0) 
 
 static std::string getConfigDir() {
     @autoreleasepool {
-        NSString *dir = [NSString stringWithFormat:@"%@/.notepad++/plugins/notepadpp_rpc",
+        NSString *dir = [NSString stringWithFormat:@"%@/.nextpad++/plugins/notepadpp_rpc",
                          NSHomeDirectory()];
         [[NSFileManager defaultManager] createDirectoryAtPath:dir
                                   withIntermediateDirectories:YES

@@ -16,6 +16,6 @@ target_include_directories(notepadpp_rpc PRIVATE
     ${NPP_PLUGIN_INCLUDE}
     ${SCINTILLA_INCLUDE})
 target_link_libraries(notepadpp_rpc PRIVATE "-framework Cocoa")
-set(PLUGIN_INSTALL_DIR "$ENV{HOME}/.notepad++/plugins/notepadpp_rpc")
+set(PLUGIN_INSTALL_DIR "$ENV{HOME}/.nextpad++/plugins/notepadpp_rpc")
 set_target_properties(notepadpp_rpc PROPERTIES PREFIX "" SUFFIX ".dylib")
 install(TARGETS notepadpp_rpc DESTINATION "${PLUGIN_INSTALL_DIR}")
