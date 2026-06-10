@@ -228,6 +228,13 @@ static std::atomic<bool> sConnected{false};
 static std::atomic<bool> sKeepRunning{false};
 static std::atomic<int64_t> sLastUpdateTime{0};
 static int64_t sStartTime = 0;
+// Tracks the two background connection-loop blocks so stopConnectionLoop() can
+// WAIT for them to finish before returning. Without this, NPPN_SHUTDOWN sets
+// sKeepRunning=false but returns immediately; the app then exit()s and runs the
+// C++ static destructors (sConfigMutex/sPresenceMutex/sConfig/...) while a loop is
+// still mid-iteration → it locks a destroyed std::mutex → std::system_error thrown
+// → std::terminate → SIGABRT on shutdown.
+static dispatch_group_t sLoopGroup = nil;
 
 static std::string generateNonce() {
     static std::random_device rd;
@@ -541,8 +548,9 @@ static void startConnectionLoop() {
     if (!sConfig.enable) return;
 
     sKeepRunning.store(true);
+    if (!sLoopGroup) sLoopGroup = dispatch_group_create();
 
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    dispatch_group_async(sLoopGroup, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         while (sKeepRunning.load()) {
             if (!sConnected.load()) {
                 int64_t clientId;
@@ -585,10 +593,12 @@ static void startConnectionLoop() {
     });
 
     // Idle detection thread
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
+    dispatch_group_async(sLoopGroup, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
         bool wasIdle = false;
         while (sKeepRunning.load()) {
-            usleep(1000000); // 1 second
+            // ~1s, but interruptible every 100ms so shutdown is prompt.
+            for (int i = 0; i < 10 && sKeepRunning.load(); i++) usleep(100000);
+            if (!sKeepRunning.load()) break;
 
             int idleTime;
             bool hideIdle;
@@ -634,7 +644,16 @@ static void startConnectionLoop() {
 
 static void stopConnectionLoop() {
     sKeepRunning.store(false);
-    disconnectDiscord();
+    disconnectDiscord();   // also closes the socket, unblocking any in-flight send
+    // Block until both background loops have actually exited, so they are not
+    // touching our static mutexes/config when the process tears them down at exit
+    // (this runs on the main thread during NPPN_SHUTDOWN). The loops only async-
+    // dispatch to the main queue (never sync), so blocking here can't deadlock; the
+    // bounded timeout guards against a loop stuck in a blocking socket call.
+    if (sLoopGroup) {
+        dispatch_group_wait(sLoopGroup,
+            dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)));
+    }
 }
 
 // ─── Menu commands ───────────────────────────────────────────────────────────
