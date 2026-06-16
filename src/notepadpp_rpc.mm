@@ -8,7 +8,8 @@
  *   - Connects to Discord via UNIX domain socket (discord-ipc-N in temp dir)
  *   - Uses GCD (dispatch queues) instead of Win32 threads
  *   - Uses NSJSONSerialization for JSON encoding
- *   - Configuration stored in ~/.nextpad++/plugins/notepadpp_rpc/notepadpp_rpc.json
+ *   - Configuration stored under the host plugin config dir (NPPM_GETPLUGINSCONFIGDIR):
+ *     <config>/notepadpp_rpc/notepadpp_rpc.json
  *   - Language detection via file extension
  *   - Status: file name, extension, size, line/column, language
  *   - Idle detection after configurable timeout
@@ -154,12 +155,35 @@ static intptr_t sci(NppHandle h, uint32_t msg, uintptr_t w = 0, intptr_t l = 0) 
 
 static std::string getConfigDir() {
     @autoreleasepool {
-        NSString *dir = [NSString stringWithFormat:@"%@/.nextpad++/plugins/notepadpp_rpc",
-                         NSHomeDirectory()];
-        [[NSFileManager defaultManager] createDirectoryAtPath:dir
-                                  withIntermediateDirectories:YES
-                                                  attributes:nil
-                                                       error:nil];
+        // Resolve the host plugin config dir (NPPM_GETPLUGINSCONFIGDIR), namespaced
+        // under a notepadpp_rpc/ subfolder (survives plugin updates, unlike the
+        // plugin's own folder). Fall back to the macOS app-support base — never a
+        // hardcoded ~/.nextpad++ dot-folder.
+        char buf[1024] = {0};
+        nppData._sendMessage(nppData._nppHandle, NPPM_GETPLUGINSCONFIGDIR,
+                             (uintptr_t)sizeof(buf), (intptr_t)buf);
+        NSString *cfgRoot = (buf[0] != '\0')
+            ? [NSString stringWithUTF8String:buf]
+            : [NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
+                  NSUserDomainMask, YES).firstObject
+                  stringByAppendingPathComponent:@"Nextpad++/plugins/Config"];
+        NSString *dir = [cfgRoot stringByAppendingPathComponent:@"notepadpp_rpc"];
+        NSFileManager *fm = [NSFileManager defaultManager];
+        [fm createDirectoryAtPath:dir withIntermediateDirectories:YES
+                       attributes:nil error:nil];
+
+        // One-time migration from the old per-plugin-folder location.
+        NSString *newPath = [dir stringByAppendingPathComponent:@"notepadpp_rpc.json"];
+        if (![fm fileExistsAtPath:newPath]) {
+            for (NSString *legacy in @[@".nextpad++/plugins/notepadpp_rpc/notepadpp_rpc.json",
+                                       @".notepad++/plugins/notepadpp_rpc/notepadpp_rpc.json"]) {
+                NSString *old = [NSHomeDirectory() stringByAppendingPathComponent:legacy];
+                if ([fm fileExistsAtPath:old]) {
+                    [fm copyItemAtPath:old toPath:newPath error:nil];
+                    break;
+                }
+            }
+        }
         return std::string([dir UTF8String]);
     }
 }

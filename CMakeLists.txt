@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(notepadpp_rpc LANGUAGES CXX OBJCXX)
+project(notepadpp_rpc VERSION 1.0.3 LANGUAGES CXX OBJCXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_OBJCXX_STANDARD 17)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
@@ -16,6 +16,8 @@ target_include_directories(notepadpp_rpc PRIVATE
     ${NPP_PLUGIN_INCLUDE}
     ${SCINTILLA_INCLUDE})
 target_link_libraries(notepadpp_rpc PRIVATE "-framework Cocoa")
-set(PLUGIN_INSTALL_DIR "$ENV{HOME}/.nextpad++/plugins/notepadpp_rpc")
+set(PLUGIN_INSTALL_DIR "$ENV{HOME}/Library/Application Support/Nextpad++/plugins/notepadpp_rpc")
 set_target_properties(notepadpp_rpc PROPERTIES PREFIX "" SUFFIX ".dylib")
+# Stamp version into the dylib Mach-O current_version (Plugins Admin reads it).
+target_link_options(notepadpp_rpc PRIVATE "-Wl,-current_version,${PROJECT_VERSION}")
 install(TARGETS notepadpp_rpc DESTINATION "${PLUGIN_INSTALL_DIR}")
